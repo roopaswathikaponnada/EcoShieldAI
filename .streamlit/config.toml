@@ -1,0 +1,80 @@
+# ============================================================
+# ECOSHIELD AI
+# STREAMLIT APPLICATION CONFIGURATION
+# ============================================================
+
+[theme]
+
+# ------------------------------------------------------------
+# Base Theme
+# ------------------------------------------------------------
+
+base = "dark"
+
+# ------------------------------------------------------------
+# EcoShield Brand Colors
+# Cybersecurity + Sustainability
+# ------------------------------------------------------------
+
+primaryColor = "#22C55E"
+
+backgroundColor = "#07131A"
+
+secondaryBackgroundColor = "#0D2028"
+
+textColor = "#F1F5F9"
+
+linkColor = "#34D399"
+
+borderColor = "#1E3A43"
+
+# ------------------------------------------------------------
+# Typography
+# ------------------------------------------------------------
+
+font = "sans-serif"
+
+headingFont = "sans-serif"
+
+codeFont = "monospace"
+
+baseFontSize = 16
+
+baseFontWeight = 400
+
+
+# ============================================================
+# STREAMLIT SERVER
+# ============================================================
+
+[server]
+
+headless = true
+
+runOnSave = true
+
+fileWatcherType = "auto"
+
+maxUploadSize = 10
+
+maxMessageSize = 50
+
+
+# ============================================================
+# BROWSER
+# ============================================================
+
+[browser]
+
+gatherUsageStats = false
+
+
+# ============================================================
+# CLIENT
+# ============================================================
+
+[client]
+
+showErrorDetails = "none"
+
+toolbarMode = "minimal"
