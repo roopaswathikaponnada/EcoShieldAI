@@ -21,10 +21,39 @@ Business logic must never be placed in this module.
 from __future__ import annotations
 
 from html import escape
+from textwrap import dedent
 from typing import Iterable
 
 import streamlit as st
 
+# ============================================================
+# SAFE HTML RENDERING
+# ============================================================
+
+def _render_html(
+    html: str,
+) -> None:
+    """
+    Render EcoShield custom HTML safely and consistently.
+
+    dedent() removes Python indentation from triple-quoted
+    templates so HTML is not interpreted as a Markdown
+    code block.
+
+    st.html() is used because these components contain HTML,
+    not Markdown.
+    """
+
+    cleaned_html = dedent(
+        html
+    ).strip()
+
+    if not cleaned_html:
+        return
+
+    st.html(
+        cleaned_html
+    )
 
 # ============================================================
 # BRAND COMPONENTS
@@ -33,7 +62,7 @@ import streamlit as st
 def render_brand(
     *,
     name: str = "EcoShield AI",
-    tagline: str = "Secure Data. Sustainable Decisions.",
+    tagline: str = "Secure Devices. Greener Tomorrow.",
     icon: str = "🛡️🌱",
 ) -> None:
     """
@@ -49,7 +78,7 @@ def render_brand(
     safe_tagline = escape(tagline)
     safe_icon = escape(icon)
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-brand">
             <div class="eco-brand-icon">
@@ -67,7 +96,6 @@ def render_brand(
             </div>
         </div>
         """,
-        unsafe_allow_html=True,
     )
 
 
@@ -112,7 +140,7 @@ def render_page_header(
             f'</div>'
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-page-header">
             {kicker_html}
@@ -123,8 +151,7 @@ def render_page_header(
 
             {subtitle_html}
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -167,7 +194,7 @@ def render_hero(
             '</div>'
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <section class="eco-hero">
 
@@ -179,8 +206,7 @@ def render_hero(
             {subtitle_html}
 
         </section>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -214,15 +240,14 @@ def render_section_header(
             '</div>'
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-section-title">
             {title_text}
         </div>
 
         {description_html}
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -258,7 +283,7 @@ def render_card(
             '</div>'
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-card">
 
@@ -271,8 +296,7 @@ def render_card(
             {description_html}
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -346,7 +370,7 @@ def render_badge(
         )
     )
 
-    st.markdown(
+    _render_html(
         f"""
         <span
             class="
@@ -356,8 +380,7 @@ def render_badge(
         >
             {escape(label)}
         </span>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -441,7 +464,7 @@ def render_stat_card(
     Render a compact custom metric card.
     """
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-stat">
 
@@ -454,8 +477,7 @@ def render_stat_card(
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -472,6 +494,7 @@ def render_risk_score(
     Render the primary 0-100 risk score card.
     """
 
+    # Keep score safely within the supported 0-100 range.
     safe_score = max(
         0,
         min(
@@ -480,13 +503,26 @@ def render_risk_score(
         ),
     )
 
-    risk_class = (
-        _normalize_css_token(
-            risk_level
-        )
+    # Normalize the risk level for CSS styling.
+    normalized_risk = (
+        risk_level
+        .strip()
+        .lower()
     )
 
-    st.markdown(
+    # Map risk levels to the semantic text colors
+    # defined by the EcoShield global stylesheet.
+    risk_color_class = {
+        "low": "eco-text-success",
+        "medium": "eco-text-warning",
+        "high": "eco-text-danger",
+    }.get(
+        normalized_risk,
+        "eco-text-secondary",
+    )
+
+    # Render the final risk score component.
+    _render_html(
         f"""
         <div class="eco-risk-score">
 
@@ -505,18 +541,15 @@ def render_risk_score(
             <div
                 class="
                     eco-risk-label
-                    eco-text-{risk_class}
+                    {risk_color_class}
                 "
             >
                 {escape(risk_level.upper())} RISK
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
-
-
 # ============================================================
 # RECOMMENDATION CARD
 # ============================================================
@@ -572,7 +605,7 @@ def render_recommendation_card(
             '</div>'
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div
             class="
@@ -598,8 +631,7 @@ def render_recommendation_card(
             {rationale_html}
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -620,15 +652,14 @@ def render_priority_badge(
 
     if normalized == "critical":
 
-        st.markdown(
+        _render_html(
             """
             <span
                 class="eco-badge eco-badge-high"
             >
                 CRITICAL
             </span>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
     elif normalized == "high":
@@ -740,13 +771,12 @@ def render_step_indicator(
             """
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-step-row">
             {''.join(pills)}
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     progress = (
@@ -778,7 +808,7 @@ def render_checklist_item(
         else "⬜"
     )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-check-item">
 
@@ -791,8 +821,7 @@ def render_checklist_item(
             </span>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -831,13 +860,12 @@ def render_source_pills(
         for source in unique_sources
     )
 
-    st.markdown(
+    _render_html(
         f"""
         <div>
             {pills}
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -855,7 +883,7 @@ def render_empty_state(
     Render a consistent empty/protected-page state.
     """
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-empty-state">
 
@@ -875,8 +903,7 @@ def render_empty_state(
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -965,13 +992,12 @@ def render_spacer(
     if normalized not in allowed:
         normalized = "md"
 
-    st.markdown(
+    _render_html(
         f"""
         <div
             class="eco-spacer-{normalized}"
         ></div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -995,7 +1021,7 @@ def render_footer(
             f" • v{escape(version)}"
         )
 
-    st.markdown(
+    _render_html(
         f"""
         <div class="eco-footer">
 
@@ -1009,6 +1035,5 @@ def render_footer(
             Privacy by design
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )

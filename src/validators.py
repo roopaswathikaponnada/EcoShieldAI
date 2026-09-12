@@ -20,7 +20,9 @@ That responsibility belongs to src/risk_engine.py.
 
 from __future__ import annotations
 
+import math
 import re
+
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 from config.config import (
@@ -292,9 +294,25 @@ def _normalize_device_age(
 
     if isinstance(
         value,
+        bool,
+    ):
+        return None
+
+    if isinstance(
+        value,
         (int, float),
     ):
-        return float(value)
+
+        numeric_value = float(
+            value
+        )
+
+        if not math.isfinite(
+            numeric_value
+        ):
+            return None
+
+        return numeric_value
 
     normalized = _normalize_string(
         value
@@ -316,7 +334,6 @@ def _normalize_device_age(
     return float(
         match.group(1)
     )
-
 
 # ============================================================
 # STORAGE CAPACITY NORMALIZATION
@@ -358,10 +375,25 @@ def _normalize_storage_capacity(
 
     if isinstance(
         value,
+        bool,
+    ):
+        return None
+
+    if isinstance(
+        value,
         (int, float),
     ):
 
-        return float(value)
+        numeric_value = float(
+            value
+        )
+
+        if not math.isfinite(
+            numeric_value
+        ):
+            return None
+
+        return numeric_value
 
     normalized = _normalize_string(
         value
@@ -392,7 +424,6 @@ def _normalize_storage_capacity(
         number *= 1024
 
     return number
-
 
 # ============================================================
 # NORMALIZE COMPLETE PAYLOAD

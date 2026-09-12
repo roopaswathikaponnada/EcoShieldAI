@@ -21,7 +21,17 @@ The suite verifies:
 - Repeatability of risk scoring
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 from config.config import (
     RISK_HIGH,
@@ -42,6 +52,7 @@ from src.risk_engine import (
     LOW_RISK_MAX,
     RiskAssessment,
     RiskFactor,
+    _risk_level_from_score,
     assess_device_risk,
     get_risk_level,
     get_risk_score,
@@ -1095,3 +1106,165 @@ def test_final_score_equals_sum_of_category_scores():
     assert result.score == sum(
         result.category_scores.values()
     )
+# ============================================================
+# FINAL RISK ENGINE HARDENING TESTS
+# ============================================================
+
+@pytest.mark.parametrize(
+    ("score", "expected_level"),
+    [
+        (24, RISK_LOW),
+        (25, RISK_MEDIUM),
+        (49, RISK_MEDIUM),
+        (50, RISK_HIGH),
+    ],
+)
+def test_exact_risk_level_boundaries(
+    score,
+    expected_level,
+):
+    """
+    Exact boundary values must map to the correct
+    Low / Medium / High risk levels.
+    """
+
+    assert (
+        _risk_level_from_score(score)
+        == expected_level
+    )
+
+
+def test_uncertain_data_with_incomplete_control_requires_sanitization():
+    """
+    Uncertain personal-data presence must be treated
+    conservatively when sanitization is incomplete.
+    """
+
+    result = assess_device_risk(
+        make_base_payload(
+            contains_personal_data="Unsure",
+            contains_sensitive_data="No",
+            secure_erase_performed="Unsure",
+        )
+    )
+
+    assert result.requires_sanitization is True
+
+
+def test_not_applicable_control_does_not_trigger_sanitization():
+    """
+    A Not Applicable control must not independently
+    create a sanitization requirement.
+    """
+
+    result = assess_device_risk(
+        make_base_payload(
+            contains_personal_data="Yes",
+            contains_sensitive_data="No",
+            secure_erase_performed="Yes",
+            factory_reset_performed="Yes",
+            accounts_signed_out="Yes",
+            sim_memory_card_removed="Not Applicable",
+        )
+    )
+
+    assert result.requires_sanitization is False
+
+
+def test_assessment_does_not_mutate_input_payload():
+    """
+    Risk assessment must not modify the caller's
+    original payload.
+    """
+
+    payload = make_base_payload(
+        contains_personal_data="Yes",
+        contains_sensitive_data="Yes",
+        encryption_enabled="No",
+        secure_erase_performed="No",
+        intended_disposal_method="Sell",
+    )
+
+    original_payload = dict(payload)
+
+    assess_device_risk(payload)
+
+    assert payload == original_payload
+
+
+def test_factor_points_sum_to_final_score():
+    """
+    Explainable factor points must exactly account
+    for the final risk score.
+    """
+
+    result = assess_device_risk(
+        make_base_payload(
+            contains_personal_data="Yes",
+            contains_sensitive_data="Yes",
+            encryption_enabled="No",
+            secure_erase_performed="No",
+            factory_reset_performed="No",
+            accounts_signed_out="No",
+            data_backed_up="No",
+            sim_memory_card_removed="No",
+            intended_disposal_method="Sell",
+        )
+    )
+
+    factor_total = sum(
+        factor.points
+        for factor in result.factors
+    )
+
+    assert factor_total == result.score
+
+
+def test_all_factor_categories_are_registered():
+    """
+    Every generated risk factor must belong to a
+    configured risk category.
+    """
+
+    result = assess_device_risk(
+        make_base_payload(
+            contains_personal_data="Yes",
+            contains_sensitive_data="Yes",
+            encryption_enabled="No",
+            secure_erase_performed="No",
+            factory_reset_performed="No",
+            accounts_signed_out="No",
+            data_backed_up="No",
+            sim_memory_card_removed="No",
+            storage_type="Unknown",
+            device_condition="Physically Damaged",
+            device_accessible="No",
+            can_power_on="No",
+            intended_disposal_method="Sell",
+        )
+    )
+
+    for factor in result.factors:
+        assert factor.category in CATEGORY_MAX_SCORES
+
+
+def test_category_scores_are_never_negative():
+    """
+    Every risk-category score must remain zero
+    or positive.
+    """
+
+    result = assess_device_risk(
+        make_base_payload(
+            contains_personal_data="Yes",
+            contains_sensitive_data="Yes",
+            encryption_enabled="No",
+            secure_erase_performed="No",
+            intended_disposal_method="Donate",
+        )
+    )
+
+    assert all(
+        score >= 0
+        for score in result.category_scores.values()
+    )    

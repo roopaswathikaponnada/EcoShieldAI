@@ -1,12 +1,19 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 
 # Virtual environment
 .venv/
+venv/
 
 # Environment variables / secrets
 .env
+.env.local
+.env.*.local
+
+# Keep example environment file
+!.env.example
 
 # VS Code
 .vscode/
@@ -14,9 +21,16 @@ __pycache__/
 # Pytest
 .pytest_cache/
 
+# Streamlit cache / local state
+.streamlit/secrets.toml
+
 # OS files
 .DS_Store
 Thumbs.db
 
 # Logs
 *.log
+
+# Temporary / generated files
+*.tmp
+*.temp

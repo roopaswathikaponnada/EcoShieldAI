@@ -19,7 +19,17 @@ The suite verifies:
 - Convenience validation functions
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 from src.validators import (
     FIELD_ACCOUNTS_SIGNED_OUT,
@@ -245,6 +255,49 @@ def test_device_age_above_maximum_is_invalid():
         in result.errors
     )
 
+def test_device_age_rejects_boolean_values():
+    """Boolean values must not be treated as numeric ages."""
+
+    for value in (True, False):
+        payload = make_valid_laptop_payload(
+            device_age=value
+        )
+
+        result = validate_device_input(payload)
+
+        assert result.is_valid is False
+
+        assert any(
+            "Device age must be a numeric value"
+            in error
+            for error in result.errors
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_device_age_rejects_non_finite_numbers(value):
+    """NaN and infinite age values must be rejected."""
+
+    payload = make_valid_laptop_payload(
+        device_age=value
+    )
+
+    result = validate_device_input(payload)
+
+    assert result.is_valid is False
+
+    assert any(
+        "Device age must be a numeric value"
+        in error
+        for error in result.errors
+    )
 
 # ============================================================
 # STORAGE CAPACITY NORMALIZATION
@@ -367,6 +420,49 @@ def test_storage_capacity_above_maximum_is_invalid():
         in result.errors
     )
 
+def test_storage_capacity_rejects_boolean_values():
+    """Boolean values must not be treated as storage capacity."""
+
+    for value in (True, False):
+        payload = make_valid_laptop_payload(
+            storage_capacity=value
+        )
+
+        result = validate_device_input(payload)
+
+        assert result.is_valid is False
+
+        assert any(
+            "Storage capacity must be a numeric value"
+            in error
+            for error in result.errors
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_storage_capacity_rejects_non_finite_numbers(value):
+    """NaN and infinite storage values must be rejected."""
+
+    payload = make_valid_laptop_payload(
+        storage_capacity=value
+    )
+
+    result = validate_device_input(payload)
+
+    assert result.is_valid is False
+
+    assert any(
+        "Storage capacity must be a numeric value"
+        in error
+        for error in result.errors
+    )
 
 # ============================================================
 # REQUIRED FIELD TESTS

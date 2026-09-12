@@ -1,1060 +1,386 @@
 """
 EcoShield AI
-Main Streamlit Application
+Main Streamlit Application Shell
 
-Current production stage:
-- Device assessment form
-- Input validation
-- Deterministic cybersecurity risk assessment
-- Security recommendations
-- Sustainability recommendations
+This module is the permanent application entry point for
+EcoShield AI.
 
-RAG and LLM enrichment will be integrated in later stages.
+Responsibilities:
+- Configure the Streamlit application
+- Initialize centralized session state
+- Apply the global EcoShield visual system
+- Render permanent sidebar navigation
+- Dynamically load and render application views
+- Display shared flash messages
+- Render the global footer
+- Fail gracefully when a page is unavailable
+
+Business logic must NOT be implemented here.
+
+Validation belongs to:
+    src/validators.py
+
+Cybersecurity risk scoring belongs to:
+    src/risk_engine.py
+
+Deterministic recommendations belong to:
+    src/recommendation.py
+
+RAG belongs to:
+    src/rag/*
+
+LLM integration belongs to:
+    src/ai/*
 """
 
 from __future__ import annotations
 
-import streamlit as st
+import importlib
+from collections.abc import Callable
+from types import ModuleType
 
+import streamlit as st
 from config.config import (
-    ACCOUNT_SIGNOUT_OPTIONS,
-    BACKUP_OPTIONS,
-    DEVICE_ACCESSIBLE_OPTIONS,
-    DEVICE_CONDITIONS,
-    DEVICE_TYPES,
-    DISPOSAL_METHODS,
-    ENCRYPTION_OPTIONS,
-    FACTORY_RESET_OPTIONS,
-    OPERATING_SYSTEMS,
     PAGE_ICON,
     PAGE_LAYOUT,
     PAGE_TITLE,
-    PERSONAL_DATA_OPTIONS,
-    POWER_ON_OPTIONS,
-    PROJECT_DESCRIPTION,
     PROJECT_NAME,
     PROJECT_VERSION,
-    REMOVABLE_MEDIA_OPTIONS,
-    SECURE_ERASE_OPTIONS,
-    SENSITIVE_DATA_OPTIONS,
-    STORAGE_CAPACITY_UNITS,
-    STORAGE_TYPES,
 )
 
-from src.recommendation import (
-    READINESS_CONDITIONAL,
-    READINESS_NOT_READY,
-    READINESS_READY,
-    generate_recommendation,
+from ui.components import (
+    render_empty_state,
+    render_footer,
+    render_notice,
 )
 
-from src.risk_engine import (
-    CATEGORY_ACCESSIBILITY,
-    CATEGORY_DATA_EXPOSURE,
-    CATEGORY_MEDIA_BACKUP,
-    CATEGORY_SANITIZATION,
-    CATEGORY_TRANSFER,
-    assess_device_risk,
+from ui.navigation import (
+    PAGE_ABOUT,
+    PAGE_AI_RECOMMENDATION,
+    PAGE_ASSESSMENT,
+    PAGE_HOME,
+    PAGE_IMPACT_DASHBOARD,
+    PAGE_KNOWLEDGE_CENTER,
+    PAGE_RISK_ANALYSIS,
+    PAGE_SECURE_DATA_GUIDE,
+    PAGE_SUSTAINABLE_DISPOSAL,
+    render_sidebar_navigation,
 )
 
-from src.validators import (
-    FIELD_ACCOUNTS_SIGNED_OUT,
-    FIELD_DATA_BACKED_UP,
-    FIELD_DEVICE_ACCESSIBLE,
-    FIELD_DEVICE_AGE,
-    FIELD_DEVICE_CONDITION,
-    FIELD_DEVICE_TYPE,
-    FIELD_DISPOSAL_METHOD,
-    FIELD_ENCRYPTION,
-    FIELD_FACTORY_RESET,
-    FIELD_OPERATING_SYSTEM,
-    FIELD_PERSONAL_DATA,
-    FIELD_POWER_ON,
-    FIELD_REMOVABLE_MEDIA_REMOVED,
-    FIELD_SECURE_ERASE,
-    FIELD_SENSITIVE_DATA,
-    FIELD_STORAGE_CAPACITY,
-    FIELD_STORAGE_TYPE,
-    validate_device_input,
+from ui.state import (
+    get_theme,
+    initialize_session_state,
+    pop_error_message,
+    pop_success_message,
+)
+
+from ui.styles import (
+    apply_global_styles,
 )
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# STREAMLIT PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
     page_title=PAGE_TITLE,
     page_icon=PAGE_ICON,
     layout=PAGE_LAYOUT,
+    initial_sidebar_state="expanded",
 )
 
 
 # ============================================================
-# HELPER FUNCTIONS
+# PAGE MODULE REGISTRY
 # ============================================================
 
-def _selectbox(
-    label: str,
-    options: list[str],
-    *,
-    key: str,
-    help_text: str | None = None,
-):
-    """
-    Create a required selectbox with no preselected answer.
-    """
-
-    return st.selectbox(
-        label,
-        options=options,
-        index=None,
-        placeholder="Select an option",
-        key=key,
-        help=help_text,
-    )
+PAGE_MODULES: dict[str, str] = {
+    PAGE_HOME: "views.home",
+    PAGE_ASSESSMENT: "views.assessment",
+    PAGE_RISK_ANALYSIS: "views.risk_analysis",
+    PAGE_AI_RECOMMENDATION: "views.ai_recommendation",
+    PAGE_SECURE_DATA_GUIDE: "views.secure_data_guide",
+    PAGE_SUSTAINABLE_DISPOSAL: "views.sustainable_disposal",
+    PAGE_KNOWLEDGE_CENTER: "views.knowledge_center",
+    PAGE_IMPACT_DASHBOARD: "views.impact_dashboard",
+    PAGE_ABOUT: "views.about",
+}
 
 
-def _readiness_message(
-    readiness: str,
-) -> tuple[str, str]:
+# ============================================================
+# VIEW CONTRACT
+# ============================================================
+
+VIEW_RENDER_FUNCTION = "render"
+
+
+# ============================================================
+# PAGE MODULE LOADER
+# ============================================================
+
+def _load_page_module(
+    module_path: str,
+) -> ModuleType | None:
     """
-    Return user-facing readiness label and explanation.
+    Dynamically import an EcoShield view module.
+
+    Parameters
+    ----------
+    module_path:
+        Python import path such as ``views.home``.
+
+    Returns
+    -------
+    ModuleType | None
+        Imported module when available.
+
+        None when the module cannot currently be loaded.
+
+    Notes
+    -----
+    Individual view modules are loaded lazily so unfinished
+    pages do not prevent the entire application from starting.
     """
 
-    if readiness == READINESS_NOT_READY:
-        return (
-            "Not Ready",
-            (
-                "Blocking security issues should be resolved "
-                "before proceeding with the selected action."
-            ),
+    try:
+
+        return importlib.import_module(
+            module_path
         )
 
-    if readiness == READINESS_CONDITIONAL:
-        return (
-            "Conditional",
-            (
-                "The action may proceed only after the "
-                "highlighted conditions or uncertainties "
-                "are reviewed."
-            ),
-        )
-
-    return (
-        "Ready",
-        (
-            "No blocking security condition has been "
-            "identified for the selected action."
-        ),
-    )
-
-
-def _display_validation_errors(
-    errors: tuple[str, ...],
-) -> None:
-    """
-    Display validation errors in a consistent format.
-    """
-
-    st.error(
-        "Please correct the following assessment details "
-        "before continuing:"
-    )
-
-    for error in errors:
-        st.markdown(
-            f"- {error}"
-        )
-
-
-def _display_validation_warnings(
-    warnings: tuple[str, ...],
-) -> None:
-    """
-    Display non-blocking validation observations.
-    """
-
-    if not warnings:
-        return
-
-    with st.expander(
-        "Input observations",
-        expanded=False,
+    except (
+        ImportError,
+        ModuleNotFoundError,
     ):
 
-        for warning in warnings:
-            st.warning(
-                warning
-            )
+        return None
 
 
-def _display_risk_overview(
-    recommendation,
+# ============================================================
+# PAGE RENDERER RESOLUTION
+# ============================================================
+
+def _get_page_renderer(
+    page_name: str,
+) -> Callable[[], None] | None:
+    """
+    Resolve the render() function for a page.
+
+    Every final file inside views/ follows one permanent
+    convention:
+
+        def render() -> None:
+            ...
+
+    This allows app.py to remain unchanged as pages are
+    implemented one by one.
+    """
+
+    module_path = PAGE_MODULES.get(
+        page_name
+    )
+
+    if module_path is None:
+        return None
+
+    module = _load_page_module(
+        module_path
+    )
+
+    if module is None:
+        return None
+
+    renderer = getattr(
+        module,
+        VIEW_RENDER_FUNCTION,
+        None,
+    )
+
+    if not callable(renderer):
+        return None
+
+    return renderer
+
+
+# ============================================================
+# UNAVAILABLE PAGE FALLBACK
+# ============================================================
+
+def _render_unavailable_page(
+    page_name: str,
 ) -> None:
     """
-    Display high-level risk and readiness information.
+    Render a clean fallback while a view has not yet been built.
     """
 
-    assessment = (
-        recommendation.assessment
+    render_empty_state(
+        title=f"{page_name} is being prepared",
+        description=(
+            "This EcoShield page is part of the final "
+            "application architecture but its view has not "
+            "yet been implemented in the current build."
+        ),
+        icon="🛠️",
     )
-
-    if assessment is None:
-        return
-
-    st.subheader(
-        "Assessment Overview"
-    )
-
-    col1, col2, col3 = st.columns(
-        3
-    )
-
-    with col1:
-        st.metric(
-            "Security Risk Score",
-            f"{assessment.score}/100",
-        )
-
-    with col2:
-        st.metric(
-            "Risk Level",
-            assessment.risk_level,
-        )
-
-    with col3:
-        st.metric(
-            "Disposal Readiness",
-            recommendation.readiness,
-        )
-
-    readiness_label, readiness_text = (
-        _readiness_message(
-            recommendation.readiness
-        )
-    )
-
-    if readiness_label == "Not Ready":
-        st.error(
-            f"**{readiness_label}:** "
-            f"{readiness_text}"
-        )
-
-    elif readiness_label == "Conditional":
-        st.warning(
-            f"**{readiness_label}:** "
-            f"{readiness_text}"
-        )
-
-    else:
-        st.success(
-            f"**{readiness_label}:** "
-            f"{readiness_text}"
-        )
 
     st.info(
-        recommendation.summary
+        "The application shell is working correctly. "
+        "This page will become available automatically once "
+        "its view module defines a render() function."
     )
 
 
-def _display_category_scores(
-    assessment,
+# ============================================================
+# FLASH MESSAGES
+# ============================================================
+
+def _render_flash_messages() -> None:
+    """
+    Display temporary cross-page success and error messages.
+
+    Messages are automatically cleared after rendering.
+    """
+
+    error_message = (
+        pop_error_message()
+    )
+
+    if error_message:
+
+        render_notice(
+            title="EcoShield could not complete the action",
+            message=error_message,
+            notice_type="error",
+        )
+
+    success_message = (
+        pop_success_message()
+    )
+
+    if success_message:
+
+        render_notice(
+            title="Success",
+            message=success_message,
+            notice_type="success",
+        )
+
+
+# ============================================================
+# CURRENT PAGE RENDERING
+# ============================================================
+
+def _render_current_page(
+    page_name: str,
 ) -> None:
     """
-    Display deterministic risk-category breakdown.
+    Render the currently selected EcoShield view.
     """
 
-    st.subheader(
-        "Risk Category Breakdown"
+    renderer = _get_page_renderer(
+        page_name
     )
 
-    category_order = [
-        CATEGORY_DATA_EXPOSURE,
-        CATEGORY_SANITIZATION,
-        CATEGORY_TRANSFER,
-        CATEGORY_ACCESSIBILITY,
-        CATEGORY_MEDIA_BACKUP,
-    ]
+    if renderer is None:
 
-    columns = st.columns(
-        len(category_order)
-    )
-
-    for column, category in zip(
-        columns,
-        category_order,
-    ):
-
-        with column:
-
-            st.metric(
-                category,
-                assessment.category_scores.get(
-                    category,
-                    0,
-                ),
-            )
-
-
-def _display_risk_factors(
-    assessment,
-) -> None:
-    """
-    Display explainable risk factors.
-    """
-
-    st.subheader(
-        "Why This Risk Score?"
-    )
-
-    if not assessment.factors:
-
-        st.success(
-            "No significant cybersecurity risk factors "
-            "were identified."
+        _render_unavailable_page(
+            page_name
         )
 
         return
 
-    for factor in assessment.factors:
+    try:
 
-        st.markdown(
-            f"**{factor.category} — "
-            f"+{factor.points} points**"
-        )
+        renderer()
 
-        st.write(
-            factor.message
-        )
-
-
-def _display_security_actions(
-    recommendation,
-) -> None:
-    """
-    Display prioritized cybersecurity recommendations.
-    """
-
-    st.subheader(
-        "Security Recommendations"
-    )
-
-    if not recommendation.security_actions:
-
-        st.success(
-            "No additional security actions are currently "
-            "required by the deterministic assessment."
-        )
-
-        return
-
-    for action in (
-        recommendation.security_actions
-    ):
-
-        with st.expander(
-            f"{action.priority} — "
-            f"{action.title}",
-            expanded=(
-                action.priority
-                in {
-                    "Critical",
-                    "High",
-                }
-            ),
-        ):
-
-            st.markdown(
-                f"**Action:** {action.action}"
-            )
-
-            st.markdown(
-                f"**Why:** {action.rationale}"
-            )
-
-            st.caption(
-                f"Source: {action.source}"
-            )
-
-
-def _display_sustainability_actions(
-    recommendation,
-) -> None:
-    """
-    Display sustainability recommendations.
-    """
-
-    st.subheader(
-        "Sustainability Recommendations"
-    )
-
-    if not (
-        recommendation
-        .sustainability_actions
-    ):
-
-        st.info(
-            "No additional sustainability recommendation "
-            "was generated for this assessment."
-        )
-
-        return
-
-    for action in (
-        recommendation
-        .sustainability_actions
-    ):
-
-        with st.expander(
-            action.title,
-            expanded=True,
-        ):
-
-            st.markdown(
-                f"**Action:** {action.action}"
-            )
-
-            st.markdown(
-                f"**Why:** {action.rationale}"
-            )
-
-
-def _display_next_steps(
-    recommendation,
-) -> None:
-    """
-    Display ordered next actions.
-    """
-
-    if not recommendation.next_steps:
-        return
-
-    st.subheader(
-        "Recommended Next Steps"
-    )
-
-    for index, step in enumerate(
-        recommendation.next_steps,
-        start=1,
-    ):
-
-        st.markdown(
-            f"**{index}. {step}**"
-        )
-
-
-def _display_uncertainties(
-    assessment,
-) -> None:
-    """
-    Display unknown or unsure security-relevant values.
-    """
-
-    if not assessment.uncertainties:
-        return
-
-    st.subheader(
-        "Information to Verify"
-    )
-
-    st.warning(
-        "Some device information remains uncertain."
-    )
-
-    for uncertainty in (
-        assessment.uncertainties
-    ):
-
-        st.markdown(
-            f"- {uncertainty}"
-        )
-
-
-def _display_final_warnings(
-    recommendation,
-) -> None:
-    """
-    Display final decision-support notices.
-    """
-
-    if not recommendation.warnings:
-        return
-
-    with st.expander(
-        "Important Notices",
-        expanded=False,
-    ):
-
-        for warning in (
-            recommendation.warnings
-        ):
-
-            st.write(
-                f"• {warning}"
-            )
-
-
-# ============================================================
-# APPLICATION HEADER
-# ============================================================
-
-st.title(
-    f"{PAGE_ICON} {PROJECT_NAME}"
-)
-
-st.subheader(
-    PROJECT_DESCRIPTION
-)
-
-st.markdown(
-    """
-    Assess an electronic device before **selling, donating,
-    reusing, repairing, recycling, or disposing of it**.
-
-    EcoShield evaluates cybersecurity and privacy conditions,
-    identifies unresolved preparation steps, and provides
-    sustainability-oriented guidance.
-    """
-)
-
-
-# ============================================================
-# PRIVACY NOTICE
-# ============================================================
-
-st.info(
-    "Privacy by design: EcoShield does not require passwords, "
-    "personal files, account credentials, or the contents of "
-    "your device. Only device-condition and security-status "
-    "information is assessed."
-)
-
-
-# ============================================================
-# BUILD INFORMATION
-# ============================================================
-
-with st.expander(
-    "About This Build",
-    expanded=False,
-):
-
-    st.write(
-        f"**Version:** {PROJECT_VERSION}"
-    )
-
-    st.write(
-        "**Frontend:** Streamlit"
-    )
-
-    st.write(
-        "**Backend:** Python"
-    )
-
-    st.write(
-        "**Current assessment:** "
-        "Deterministic cybersecurity risk engine"
-    )
-
-    st.write(
-        "**Current recommendation mode:** "
-        "Rule-based security + sustainability guidance"
-    )
-
-    st.write(
-        "**AI/RAG:** Scheduled for the next development stage"
-    )
-
-
-st.divider()
-
-
-# ============================================================
-# DEVICE ASSESSMENT FORM
-# ============================================================
-
-st.header(
-    "Device Assessment"
-)
-
-st.caption(
-    "Complete all required fields before selecting "
-    "'Assess Device'."
-)
-
-
-with st.form(
-    "device_assessment_form",
-    clear_on_submit=False,
-):
-
-    # ========================================================
-    # SECTION 1 — DEVICE INFORMATION
-    # ========================================================
-
-    st.subheader(
-        "1. Device Information"
-    )
-
-    col1, col2 = st.columns(
-        2
-    )
-
-    with col1:
-
-        device_type = _selectbox(
-            "Device Type",
-            DEVICE_TYPES,
-            key="device_type",
-        )
-
-        operating_system = (
-            _selectbox(
-                "Operating System",
-                OPERATING_SYSTEMS,
-                key="operating_system",
-            )
-        )
-
-    with col2:
-
-        device_age = st.number_input(
-            "Device Age (Years)",
-            min_value=0.0,
-            max_value=50.0,
-            value=0.0,
-            step=0.5,
-            help=(
-                "Enter the approximate age of the "
-                "device in years."
-            ),
-        )
-
-        device_condition = (
-            _selectbox(
-                "Device Condition",
-                DEVICE_CONDITIONS,
-                key="device_condition",
-            )
-        )
-
-
-    # ========================================================
-    # SECTION 2 — STORAGE INFORMATION
-    # ========================================================
-
-    st.subheader(
-        "2. Storage Information"
-    )
-
-    col1, col2, col3 = st.columns(
-        [2, 2, 1]
-    )
-
-    with col1:
-
-        storage_type = (
-            _selectbox(
-                "Storage Type",
-                STORAGE_TYPES,
-                key="storage_type",
-            )
-        )
-
-    with col2:
-
-        storage_capacity = (
-            st.number_input(
-                "Storage Capacity",
-                min_value=0.0,
-                value=0.0,
-                step=1.0,
-                help=(
-                    "Enter 0 only when storage is "
-                    "Not Applicable."
-                ),
-            )
-        )
-
-    with col3:
-
-        storage_unit = (
-            st.selectbox(
-                "Unit",
-                STORAGE_CAPACITY_UNITS,
-                index=0,
-            )
-        )
-
-
-    # ========================================================
-    # SECTION 3 — DATA SENSITIVITY
-    # ========================================================
-
-    st.subheader(
-        "3. Data Sensitivity"
-    )
-
-    col1, col2 = st.columns(
-        2
-    )
-
-    with col1:
-
-        personal_data = (
-            _selectbox(
-                "Contains Personal Data?",
-                PERSONAL_DATA_OPTIONS,
-                key="personal_data",
-            )
-        )
-
-    with col2:
-
-        sensitive_data = (
-            _selectbox(
-                "Contains Sensitive Data?",
-                SENSITIVE_DATA_OPTIONS,
-                key="sensitive_data",
-            )
-        )
-
-
-    # ========================================================
-    # SECTION 4 — DEVICE ACCESS
-    # ========================================================
-
-    st.subheader(
-        "4. Device Accessibility"
-    )
-
-    col1, col2 = st.columns(
-        2
-    )
-
-    with col1:
-
-        device_accessible = (
-            _selectbox(
-                "Device Accessible?",
-                DEVICE_ACCESSIBLE_OPTIONS,
-                key="device_accessible",
-            )
-        )
-
-    with col2:
-
-        can_power_on = (
-            _selectbox(
-                "Can Device Power On?",
-                POWER_ON_OPTIONS,
-                key="can_power_on",
-            )
-        )
-
-
-    # ========================================================
-    # SECTION 5 — DATA PREPARATION
-    # ========================================================
-
-    st.subheader(
-        "5. Data & Security Preparation"
-    )
-
-    col1, col2 = st.columns(
-        2
-    )
-
-    with col1:
-
-        data_backed_up = (
-            _selectbox(
-                "Data Backed Up?",
-                BACKUP_OPTIONS,
-                key="data_backed_up",
-            )
-        )
-
-        factory_reset = (
-            _selectbox(
-                "Factory Reset Performed?",
-                FACTORY_RESET_OPTIONS,
-                key="factory_reset",
-            )
-        )
-
-        secure_erase = (
-            _selectbox(
-                "Secure Erase Performed?",
-                SECURE_ERASE_OPTIONS,
-                key="secure_erase",
-            )
-        )
-
-    with col2:
-
-        encryption_enabled = (
-            _selectbox(
-                "Encryption Enabled?",
-                ENCRYPTION_OPTIONS,
-                key="encryption_enabled",
-            )
-        )
-
-        accounts_signed_out = (
-            _selectbox(
-                "Accounts Signed Out?",
-                ACCOUNT_SIGNOUT_OPTIONS,
-                key="accounts_signed_out",
-            )
-        )
-
-        removable_media_removed = (
-            _selectbox(
-                "SIM / Memory Card Removed?",
-                REMOVABLE_MEDIA_OPTIONS,
-                key="removable_media_removed",
-            )
-        )
-
-
-    # ========================================================
-    # SECTION 6 — INTENDED ACTION
-    # ========================================================
-
-    st.subheader(
-        "6. Intended Device Action"
-    )
-
-    disposal_method = (
-        _selectbox(
-            "Intended Disposal Method",
-            DISPOSAL_METHODS,
-            key="disposal_method",
-            help_text=(
-                "Choose what you currently plan "
-                "to do with the device."
-            ),
-        )
-    )
-
-
-    # ========================================================
-    # SUBMIT
-    # ========================================================
-
-    st.divider()
-
-    submitted = (
-        st.form_submit_button(
-            "Assess Device",
-            use_container_width=True,
-        )
-    )
-
-
-# ============================================================
-# ASSESSMENT PROCESSING
-# ============================================================
-
-if submitted:
-
-    # --------------------------------------------------------
-    # Build canonical validator payload
-    # --------------------------------------------------------
-
-    if (
-        storage_type
-        == "Not Applicable"
-    ):
-
-        formatted_capacity = "0"
-
-    else:
-
-        formatted_capacity = (
-            f"{storage_capacity} "
-            f"{storage_unit}"
-        )
-
-    payload = {
-        FIELD_DEVICE_TYPE: device_type,
-        FIELD_OPERATING_SYSTEM: (
-            operating_system
-        ),
-        FIELD_DEVICE_AGE: device_age,
-        FIELD_DEVICE_CONDITION: (
-            device_condition
-        ),
-        FIELD_STORAGE_TYPE: storage_type,
-        FIELD_STORAGE_CAPACITY: (
-            formatted_capacity
-        ),
-        FIELD_PERSONAL_DATA: (
-            personal_data
-        ),
-        FIELD_SENSITIVE_DATA: (
-            sensitive_data
-        ),
-        FIELD_DEVICE_ACCESSIBLE: (
-            device_accessible
-        ),
-        FIELD_POWER_ON: can_power_on,
-        FIELD_DATA_BACKED_UP: (
-            data_backed_up
-        ),
-        FIELD_FACTORY_RESET: (
-            factory_reset
-        ),
-        FIELD_SECURE_ERASE: (
-            secure_erase
-        ),
-        FIELD_ENCRYPTION: (
-            encryption_enabled
-        ),
-        FIELD_ACCOUNTS_SIGNED_OUT: (
-            accounts_signed_out
-        ),
-        FIELD_REMOVABLE_MEDIA_REMOVED: (
-            removable_media_removed
-        ),
-        FIELD_DISPOSAL_METHOD: (
-            disposal_method
-        ),
-    }
-
-
-    # --------------------------------------------------------
-    # Validation
-    # --------------------------------------------------------
-
-    validation = (
-        validate_device_input(
-            payload
-        )
-    )
-
-    st.divider()
-
-    if not validation.is_valid:
-
-        _display_validation_errors(
-            validation.errors
-        )
-
-        _display_validation_warnings(
-            validation.warnings
-        )
-
-    else:
-
-        _display_validation_warnings(
-            validation.warnings
-        )
+    except Exception as exc:
 
         # ----------------------------------------------------
-        # Risk assessment + recommendation
+        # Keep the application shell alive even when an
+        # individual page encounters an unexpected error.
+        #
+        # Detailed traceback is intentionally not exposed
+        # directly to end users in production UI.
         # ----------------------------------------------------
 
-        try:
+        render_notice(
+            title="Page could not be displayed",
+            message=(
+                "EcoShield encountered an unexpected error "
+                "while loading this page. Please return to "
+                "another page or try again."
+            ),
+            notice_type="error",
+        )
 
-            assessment = (
-                assess_device_risk(
-                    validation.data
-                )
-            )
-
-            recommendation = (
-                generate_recommendation(
-                    assessment
-                )
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ) as exc:
-
-            st.error(
-                "EcoShield could not complete the "
-                "assessment."
-            )
-
-            st.exception(
-                exc
-            )
-
-        else:
-
-            # ------------------------------------------------
-            # Results
-            # ------------------------------------------------
-
-            st.header(
-                "EcoShield Results"
-            )
-
-            _display_risk_overview(
-                recommendation
-            )
-
-            st.divider()
-
-            _display_category_scores(
-                assessment
-            )
-
-            st.divider()
-
-            tab1, tab2, tab3 = st.tabs(
-                [
-                    "Risk Factors",
-                    "Security Actions",
-                    "Sustainability",
-                ]
-            )
-
-            with tab1:
-
-                _display_risk_factors(
-                    assessment
-                )
-
-                _display_uncertainties(
-                    assessment
-                )
-
-            with tab2:
-
-                _display_security_actions(
-                    recommendation
-                )
-
-            with tab3:
-
-                _display_sustainability_actions(
-                    recommendation
-                )
-
-            st.divider()
-
-            _display_next_steps(
-                recommendation
-            )
-
-            _display_final_warnings(
-                recommendation
-            )
+        # Development-safe logging to the terminal.
+        # No user secrets or device contents should be logged.
+        print(
+            f"[EcoShield] Error rendering "
+            f"'{page_name}': "
+            f"{type(exc).__name__}: {exc}"
+        )
 
 
 # ============================================================
-# FOOTER
+# APPLICATION BOOTSTRAP
 # ============================================================
 
-st.divider()
+def main() -> None:
+    """
+    Start the EcoShield AI Streamlit application.
+    """
 
-st.caption(
-    "EcoShield AI • Decision-support prototype for secure "
-    "and sustainable electronic-device handling."
-)
+    # --------------------------------------------------------
+    # 1. Initialize application state
+    # --------------------------------------------------------
+
+    initialize_session_state()
+
+    # --------------------------------------------------------
+    # 2. Apply global cybersecurity + sustainability styling
+    # --------------------------------------------------------
+
+    apply_global_styles(
+        get_theme()
+    )
+
+    # --------------------------------------------------------
+    # 3. Render permanent sidebar and determine active page
+    # --------------------------------------------------------
+
+    current_page = (
+        render_sidebar_navigation()
+    )
+
+    # --------------------------------------------------------
+    # 4. Render cross-page notifications
+    # --------------------------------------------------------
+
+    _render_flash_messages()
+
+    # --------------------------------------------------------
+    # 5. Render selected application page
+    # --------------------------------------------------------
+
+    _render_current_page(
+        current_page
+    )
+
+    # --------------------------------------------------------
+    # 6. Shared application footer
+    # --------------------------------------------------------
+
+    render_footer(
+        project_name=PROJECT_NAME,
+        version=PROJECT_VERSION,
+    )
+
+
+# ============================================================
+# APPLICATION ENTRY POINT
+# ============================================================
+
+if __name__ == "__main__":
+    main()

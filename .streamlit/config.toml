@@ -1,80 +1,28 @@
-# ============================================================
-# ECOSHIELD AI
-# STREAMLIT APPLICATION CONFIGURATION
-# ============================================================
-
+# EcoShield AI — Locked Submission Frontend
 [theme]
-
-# ------------------------------------------------------------
-# Base Theme
-# ------------------------------------------------------------
-
-base = "dark"
-
-# ------------------------------------------------------------
-# EcoShield Brand Colors
-# Cybersecurity + Sustainability
-# ------------------------------------------------------------
-
-primaryColor = "#22C55E"
-
-backgroundColor = "#07131A"
-
-secondaryBackgroundColor = "#0D2028"
-
-textColor = "#F1F5F9"
-
-linkColor = "#34D399"
-
-borderColor = "#1E3A43"
-
-# ------------------------------------------------------------
-# Typography
-# ------------------------------------------------------------
-
+base = "light"
+primaryColor = "#12B76A"
+backgroundColor = "#F7FAF8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#173326"
+linkColor = "#087A52"
+borderColor = "#DCEAE2"
 font = "sans-serif"
-
 headingFont = "sans-serif"
-
 codeFont = "monospace"
-
 baseFontSize = 16
-
 baseFontWeight = 400
 
-
-# ============================================================
-# STREAMLIT SERVER
-# ============================================================
-
 [server]
-
 headless = true
-
 runOnSave = true
-
-fileWatcherType = "auto"
-
+fileWatcherType = "none"
 maxUploadSize = 10
-
 maxMessageSize = 50
 
-
-# ============================================================
-# BROWSER
-# ============================================================
-
 [browser]
-
 gatherUsageStats = false
 
-
-# ============================================================
-# CLIENT
-# ============================================================
-
 [client]
-
 showErrorDetails = "none"
-
 toolbarMode = "minimal"

@@ -502,10 +502,10 @@ hr {{
         center;
 
     width:
-        38px;
+        44px;
 
     height:
-        38px;
+        44px;
 
     border-radius:
         11px;
@@ -520,7 +520,7 @@ hr {{
         var(--eco-primary);
 
     font-size:
-        1.2rem;
+        1.3rem;
 }}
 
 .eco-brand-name {{
@@ -1582,16 +1582,980 @@ hr {{
 # PUBLIC STYLE APPLICATION
 # ============================================================
 
-def apply_global_styles() -> None:
-    """
-    Apply the EcoShield global stylesheet to the current
-    Streamlit page.
 
-    This function should be called once by the final app shell.
-    Individual pages should not inject their own global CSS.
+def apply_global_styles(
+    theme: str,
+) -> None:
+    """
+    Apply the EcoShield global stylesheet and V2 visual layer.
+
+    The V2 layer is fully theme-aware. It never forces the light
+    palette after the user selects Dark mode.
     """
 
-    st.markdown(
-        GLOBAL_CSS,
-        unsafe_allow_html=True,
+    normalized = (
+        str(theme)
+        .strip()
+        .lower()
+    )
+
+    is_light = (
+        normalized == "light"
+    )
+
+    if is_light:
+        palette = {
+            "background": "#F4F9F6",
+            "surface": "#FFFFFF",
+            "surface_alt": "#EEF8F2",
+            "surface_hover": "#E6F4EB",
+            "sidebar_top": "#FBFEFC",
+            "sidebar_bottom": "#EEF8F2",
+            "text": "#0B1F16",
+"text_secondary": "#344B3D",
+"text_muted": "#566C5F",
+            "border": "#D6E6DB",
+            "border_soft": "rgba(18, 74, 45, 0.10)",
+            "shadow": "0 14px 38px rgba(17, 61, 36, 0.08)",
+            "hero_start": "#063F35",
+            "hero_mid": "#075D47",
+            "hero_end": "#0B6B4E",
+            "hero_text": "#FFFFFF",
+            "hero_sub": "#D7F3E5",
+            "input": "#FFFFFF",
+            "topbar": "rgba(255,255,255,0.88)",
+        }
+    else:
+        palette = {
+            "background": "#061116",
+            "surface": "#0C1B21",
+            "surface_alt": "#10262C",
+            "surface_hover": "#153138",
+            "sidebar_top": "#08171C",
+            "sidebar_bottom": "#0A2024",
+            "text": "#F4F8F6",
+            "text_secondary": "#B4C6BD",
+            "text_muted": "#7F9A8E",
+            "border": "#1D3B3D",
+            "border_soft": "rgba(148, 184, 168, 0.12)",
+            "shadow": "0 16px 44px rgba(0, 0, 0, 0.30)",
+            "hero_start": "#032E2A",
+            "hero_mid": "#06473A",
+            "hero_end": "#07543F",
+            "hero_text": "#FFFFFF",
+            "hero_sub": "#CDEBDD",
+            "input": "#0F2329",
+            "topbar": "rgba(8,23,28,0.88)",
+        }
+
+    theme_css = f"""
+    <style>
+    :root {{
+        --eco-primary: #17B978;
+        --eco-primary-hover: #0E9F66;
+        --eco-primary-soft: rgba(23, 185, 120, 0.12);
+        --eco-primary-border: rgba(23, 185, 120, 0.26);
+        --eco-ai: #16A6A0;
+        --eco-success: #16A36A;
+        --eco-warning: #E2A20A;
+        --eco-danger: #E34B4B;
+        --eco-info: #2C9CCE;
+
+        --eco-background: {palette["background"]};
+        --eco-surface: {palette["surface"]};
+        --eco-surface-alt: {palette["surface_alt"]};
+        --eco-surface-hover: {palette["surface_hover"]};
+        --eco-border: {palette["border"]};
+        --eco-border-soft: {palette["border_soft"]};
+        --eco-text: {palette["text"]};
+        --eco-text-secondary: {palette["text_secondary"]};
+        --eco-text-muted: {palette["text_muted"]};
+        --eco-shadow: {palette["shadow"]};
+    }}
+
+    html, body, [class*="css"] {{
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+            BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }}
+
+    /* ==========================================================
+       GLOBAL TYPOGRAPHY SYSTEM
+       ========================================================== */
+
+    html,
+    body,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stSidebar"],
+    button,
+    input,
+    textarea,
+    select,
+    label,
+    p,
+    small {{
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+            BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    }}
+
+    /* Keep Streamlit / Material icons as icons, not text labels such as
+       "keyboard_double_arrow_left". */
+    .material-icons,
+    .material-icons-outlined,
+    .material-icons-round,
+    .material-icons-sharp,
+    .material-symbols-outlined,
+    .material-symbols-rounded,
+    .material-symbols-sharp,
+    [class*="material-symbols"],
+    [class*="material-icons"] {{
+        font-family: "Material Symbols Rounded",
+                     "Material Symbols Outlined",
+                     "Material Icons" !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+        word-wrap: normal !important;
+        direction: ltr !important;
+        -webkit-font-feature-settings: "liga" !important;
+        -webkit-font-smoothing: antialiased !important;
+        font-feature-settings: "liga" !important;
+    }}
+
+    /* Streamlit sidebar collapse / expand control */
+    [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="stSidebarCollapseButton"] i,
+    [data-testid="stSidebarCollapsedControl"] span,
+    [data-testid="stSidebarCollapsedControl"] i {{
+        font-family: "Material Symbols Rounded",
+                     "Material Symbols Outlined",
+                     "Material Icons" !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+        font-feature-settings: "liga" !important;
+        -webkit-font-feature-settings: "liga" !important;
+    }}
+
+    /* Main page headings */
+    h1,
+    .eco-page-title,
+    .eco-v2-hero h1 {{
+        font-weight: 800 !important;
+        letter-spacing: -.035em;
+    }}
+
+    h2,
+    .eco-section-title,
+    .eco-v2-section-title h2 {{
+        font-weight: 750 !important;
+        letter-spacing: -.025em;
+    }}
+
+    h3,
+    h4,
+    .eco-card-title,
+    .eco-feature-title,
+    .eco-empty-title {{
+        font-weight: 700 !important;
+        letter-spacing: -.015em;
+    }}
+
+    h5,
+    h6 {{
+        font-weight: 700 !important;
+    }}
+
+    /* Normal body/context text */
+    p,
+    .eco-page-subtitle,
+    .eco-section-description,
+    .eco-card-description,
+    .eco-feature-description,
+    .eco-v2-section-title p,
+    .eco-v2-mini span {{
+        font-weight: 500 !important;
+        line-height: 1.55;
+    }}
+
+    /* Form labels and field context */
+    label,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stWidgetLabel"] span {{
+        font-weight: 600 !important;
+        color: {palette["text"]} !important;
+    }}
+
+    /* Inputs/selects */
+    input,
+    textarea,
+    div[data-baseweb="select"] span {{
+        font-weight: 500 !important;
+    }}
+
+    /* Input and textarea placeholder contrast.
+       Dark mode gets a brighter muted tone; Light mode keeps
+       the existing theme-aware muted text colour. */
+    input::placeholder,
+    textarea::placeholder {{
+        color: {"#9FB5AA" if not is_light else palette["text_muted"]} !important;
+        opacity: 1 !important;
+    }}
+
+    /* Assessment help / tooltip icons
+       Keep Light mode subtle, but make the icons clearly visible in Dark mode. */
+    [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"],
+    [data-testid="stWidgetLabel"] button[aria-label*="Help"],
+    [data-testid="stWidgetLabel"] button[aria-label*="help"] {{
+        color: {"#F4F8F6" if not is_light else palette["text_muted"]} !important;
+        opacity: 1 !important;
+    }}
+
+    [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] svg,
+    [data-testid="stWidgetLabel"] button[aria-label*="Help"] svg,
+    [data-testid="stWidgetLabel"] button[aria-label*="help"] svg {{
+        color: {"#F4F8F6" if not is_light else palette["text_muted"]} !important;
+        fill: currentColor !important;
+        opacity: 1 !important;
+    }}
+
+    /* Buttons across the complete app */
+    .stButton > button,
+    .stFormSubmitButton > button,
+    [data-testid="stSidebar"] .stButton > button {{
+        font-weight: 700 !important;
+        letter-spacing: -.01em;
+    }}
+
+    .stButton > button p,
+    .stFormSubmitButton > button p,
+    [data-testid="stSidebar"] .stButton > button p,
+    .stButton > button span,
+    .stFormSubmitButton > button span,
+    [data-testid="stSidebar"] .stButton > button span {{
+        font-weight: 700 !important;
+    }}
+
+    /* Tabs, expanders and navigation-like controls */
+    [data-baseweb="tab"],
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary p {{
+        font-weight: 650 !important;
+    }}
+
+    /* Metrics and statistical values */
+    [data-testid="stMetricValue"],
+    .eco-stat-value,
+    .eco-risk-number,
+    .eco-risk-label {{
+        font-weight: 750 !important;
+    }}
+
+    [data-testid="stMetricLabel"],
+    .eco-stat-label {{
+        font-weight: 600 !important;
+    }}
+
+    /* Badges, kickers and eyebrow text */
+    .eco-kicker,
+    .eco-badge,
+    .eco-v2-eyebrow,
+    .eco-v2-section-title .k {{
+        font-weight: 750 !important;
+        letter-spacing: .055em;
+    }}
+
+    /* Sidebar hierarchy */
+    .eco-brand-name {{
+        font-weight: 800 !important;
+    }}
+
+    .eco-brand-tagline,
+    [data-testid="stSidebar"] .stCaption,
+    [data-testid="stSidebar"] small,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{
+        font-weight: 600 !important;
+    }}
+
+    /* Small helper text / captions */
+    .stCaption,
+    small,
+    .eco-muted,
+    .eco-footer {{
+        font-weight: 500 !important;
+    }}
+
+    /* Strong and bold tags rendered from markdown/HTML */
+    strong,
+    b {{
+        font-weight: 700 !important;
+    }}
+
+    [data-testid="stAppViewContainer"] {{
+        background:
+            radial-gradient(circle at 78% 0%, rgba(23,185,120,0.07), transparent 28rem),
+            radial-gradient(circle at 8% 88%, rgba(22,166,160,0.05), transparent 24rem),
+            {palette["background"]} !important;
+        color: {palette["text"]};
+    }}
+
+    /* Keep Streamlit's header alive so the sidebar can be reopened,
+       but make the bar visually transparent. */
+    [data-testid="stHeader"],
+    header[data-testid="stHeader"] {{
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+    }}
+
+    [data-testid="stDecoration"] {{
+        display: none !important;
+    }}
+
+    /* Always keep sidebar hide/show controls visible and clickable. */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarCollapsedControl"] {{
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 99999 !important;
+    }}
+
+    [data-testid="stSidebarCollapsedControl"] {{
+        position: fixed !important;
+        top: .75rem !important;
+        left: .75rem !important;
+    }}
+
+    [data-testid="stSidebarCollapseButton"] button,
+    [data-testid="stSidebarCollapsedControl"] button {{
+        background: {palette["surface"]} !important;
+        color: {palette["text"]} !important;
+        border: 1px solid {palette["border"]} !important;
+        border-radius: 10px !important;
+        box-shadow: 0 5px 16px rgba(0,0,0,.10) !important;
+    }}
+
+    /* Wider, clearer sidebar */
+    [data-testid="stSidebar"] {{
+        width: 268px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
+        background: linear-gradient(
+            180deg,
+            {palette["sidebar_top"]} 0%,
+            {palette["sidebar_bottom"]} 100%
+        ) !important;
+        border-right: 1px solid {palette["border_soft"]};
+    }}
+
+    [data-testid="stSidebar"] > div:first-child {{
+        width: 268px !important;
+        padding-top: .85rem;
+        padding-left: .9rem;
+        padding-right: .9rem;
+    }}
+
+    [data-testid="stSidebar"] .stButton > button {{
+        width: 100% !important;
+        min-height: 2.9rem;
+        padding: .55rem .8rem !important;
+        border-radius: 11px !important;
+        border: 1px solid transparent !important;
+        font-size: .88rem !important;
+        font-weight: 700 !important;
+        letter-spacing: -.01em;
+        line-height: 1.25 !important;
+        transition: all .18s ease;
+    }}
+
+    [data-testid="stSidebar"] .stButton > button p,
+    [data-testid="stSidebar"] .stButton > button span {{
+        font-size: .88rem !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+    }}
+
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {{
+        background: linear-gradient(135deg, #16B978, #119968) !important;
+        color: white !important;
+        box-shadow: 0 8px 18px rgba(22,185,120,.18);
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{
+        color: {palette["text_secondary"]} !important;
+    }}
+
+    [data-testid="stSidebar"] hr {{
+        margin: 1rem 0 !important;
+        border-color: {palette["border"]} !important;
+        opacity: .9;
+    }}
+
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
+        background: {palette["surface"]} !important;
+        color: {palette["text"]} !important;
+        border-color: {palette["border"]} !important;
+        font-weight: 700 !important;
+        box-shadow: 0 3px 10px rgba(17, 61, 36, 0.035);
+    }}
+
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {{
+        background: {palette["surface_hover"]} !important;
+        border-color: {palette["border"]} !important;
+    }}
+
+    [data-testid="stSidebar"] .stCaption,
+    [data-testid="stSidebar"] small {{
+        color: {palette["text_secondary"]} !important;
+        font-size: .75rem !important;
+        font-weight: 650 !important;
+        line-height: 1.45 !important;
+    }}
+
+    /* Safe screen-fit layout:
+       centered by width, normal vertical document flow. */
+    .block-container,
+    [data-testid="stMainBlockContainer"] {{
+        width: min(92%, 1480px) !important;
+        max-width: 1480px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-top: clamp(2.25rem, 5vh, 4rem) !important;
+        padding-bottom: clamp(2rem, 5vh, 4rem) !important;
+        padding-left: clamp(1rem, 1.8vw, 1.75rem) !important;
+        padding-right: clamp(1rem, 1.8vw, 1.75rem) !important;
+        box-sizing: border-box !important;
+    }}
+
+    [data-testid="stMain"] {{
+        width: 100% !important;
+        max-width: none !important;
+    }}
+
+    h1, h2, h3, h4, h5, h6,
+    .stMarkdown, .stCaption, label,
+    [data-testid="stMarkdownContainer"] {{
+        color: {palette["text"]};
+    }}
+
+    p, small, .stCaption {{
+    color: {palette["text_secondary"]};
+    font-weight: 500;
+}}
+
+    .eco-brand {{
+        padding: .4rem 0 .8rem 0;
+    }}
+
+    .eco-brand-icon {{
+        background: linear-gradient(145deg, #17B978, #0B7D5C) !important;
+        border: 0 !important;
+        box-shadow: 0 8px 24px rgba(23,185,120,.18);
+    }}
+
+    .eco-brand-name {{
+        color: {palette["text"]} !important;
+        font-size: 1.22rem !important;
+        font-weight: 850 !important;
+        letter-spacing: -.025em;
+        line-height: 1.15;
+    }}
+
+    .eco-brand-tagline {{
+    color: {"#FFFFFF" if not is_light else palette["text_secondary"]} !important;
+    font-size: .82rem !important;
+    font-weight: 650 !important;
+    line-height: 1.45;
+    margin-top: .18rem;
+}}
+
+    .eco-v2-hero {{
+        position: relative;
+        overflow: hidden;
+        border-radius: 22px;
+        padding: clamp(1.6rem, 2.7vw, 2.8rem);
+        min-height: 250px;
+        background:
+            radial-gradient(circle at 88% 18%, rgba(75,255,179,.22), transparent 18rem),
+            radial-gradient(circle at 65% 88%, rgba(9,113,85,.42), transparent 19rem),
+            linear-gradient(120deg,
+                {palette["hero_start"]} 0%,
+                {palette["hero_mid"]} 52%,
+                {palette["hero_end"]} 100%);
+        color: {palette["hero_text"]};
+        box-shadow: 0 24px 60px rgba(3, 48, 38, .22);
+        border: 1px solid rgba(255,255,255,.08);
+    }}
+
+    .eco-v2-hero:after {{
+        content: "";
+        position: absolute;
+        width: 360px;
+        height: 360px;
+        right: -90px;
+        bottom: -150px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,.13);
+        box-shadow:
+            0 0 0 36px rgba(255,255,255,.025),
+            0 0 0 72px rgba(255,255,255,.018);
+    }}
+
+    .eco-v2-eyebrow {{
+        display: inline-flex;
+        gap: .45rem;
+        align-items: center;
+        padding: .45rem .7rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,.10);
+        border: 1px solid rgba(255,255,255,.14);
+        font-size: .76rem;
+        font-weight: 750;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: #DDF9EB;
+    }}
+
+    .eco-v2-hero h1 {{
+        position: relative;
+        z-index: 1;
+        margin: 1rem 0 .8rem 0;
+        max-width: 820px;
+        font-size: clamp(2.15rem, 3.8vw, 4rem);
+        line-height: .98;
+        letter-spacing: -.055em;
+        color: {palette["hero_text"]} !important;
+    }}
+
+    .eco-v2-hero h1 span {{
+        color: #4AF0A0;
+    }}
+
+    .eco-v2-hero p {{
+        position: relative;
+        z-index: 1;
+        max-width: 740px;
+        margin: 0;
+        color: {palette["hero_sub"]} !important;
+        font-size: clamp(.96rem, 1.45vw, 1.12rem);
+        line-height: 1.7;
+    }}
+
+    .eco-v2-feature-strip {{
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: .65rem;
+        margin: .65rem 0 1rem 0;
+    }}
+
+    .eco-v2-mini {{
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        min-height: 62px;
+        padding: .65rem .8rem;
+        border-radius: 14px;
+        background: {palette["surface"]};
+        border: 1px solid {palette["border"]};
+        box-shadow: {palette["shadow"]};
+        color: {palette["text"]};
+    }}
+
+    .eco-v2-mini-icon {{
+        width: 36px;
+        height: 36px;
+        flex: 0 0 36px;
+        display: grid;
+        place-items: center;
+        border-radius: 11px;
+        background: rgba(23,185,120,.11);
+        border: 1px solid rgba(23,185,120,.20);
+        font-size: 1rem;
+    }}
+
+    .eco-v2-mini strong {{
+        display: block;
+        color: {palette["text"]};
+        font-size: .9rem;
+        margin-bottom: .1rem;
+    }}
+
+    .eco-v2-mini span {{
+    color: {palette["text_secondary"]};
+    font-size: .76rem;
+    line-height: 1.4;
+    font-weight: 500;
+}}
+
+    .eco-v2-section-title {{
+        margin: 1.25rem 0 .55rem;
+    }}
+
+    .eco-v2-section-title .k {{
+        color: #16A36A;
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }}
+
+    .eco-v2-section-title h2 {{
+        margin: .28rem 0 .25rem;
+        font-size: clamp(1.4rem, 2vw, 2rem);
+        color: {palette["text"]} !important;
+    }}
+
+    .eco-v2-section-title p {{
+        margin: 0;
+        color: {palette["text_secondary"]} !important;
+        max-width: 760px;
+        font-weight: 500;
+        line-height: 1.6;
+    }}
+
+    .eco-card,
+    .eco-stat,
+    .eco-risk-score,
+    .eco-recommendation,
+    [data-testid="stMetric"],
+    [data-testid="stForm"] {{
+        background: {palette["surface"]} !important;
+        border: 1px solid {palette["border"]} !important;
+        box-shadow: {palette["shadow"]} !important;
+        border-radius: 16px !important;
+    }}
+
+    .eco-feature-card {{
+        min-height: 145px;
+        background: {palette["surface"]} !important;
+        border: 1px solid {palette["border"]} !important;
+        box-shadow: {palette["shadow"]} !important;
+        border-radius: 17px !important;
+        transition: transform .18s ease, box-shadow .18s ease;
+    }}
+
+    .eco-feature-card:hover {{
+        transform: translateY(-2px);
+    }}
+
+    .eco-card p,
+    .eco-feature-card p,
+    .eco-recommendation p {{
+        color: {palette["text_secondary"]} !important;
+        font-weight: 500;
+    }}
+
+    .eco-card-title,
+    .eco-stat-value,
+    .eco-section-title,
+    .eco-page-title {{
+        color: {palette["text"]} !important;
+    }}
+
+    .eco-card-description,
+.eco-feature-description,
+.eco-stat-label,
+.eco-section-description,
+.eco-page-subtitle {{
+    color: {palette["text_secondary"]} !important;
+}}
+
+.eco-card-description,
+.eco-feature-description,
+.eco-section-description,
+.eco-page-subtitle {{
+    font-weight: 500;
+}}
+
+    .stButton > button {{
+        border-radius: 11px !important;
+        min-height: 2.75rem;
+        font-weight: 700 !important;
+    }}
+
+    .stButton > button[kind="primary"] {{
+        background: linear-gradient(135deg, #17B978, #0F9F68) !important;
+        color: white !important;
+        border: 0 !important;
+        box-shadow: 0 8px 18px rgba(23,185,120,.18);
+    }}
+
+    .stButton > button[kind="secondary"] {{
+        background: {palette["surface"]} !important;
+        color: {palette["text"]} !important;
+        border: 1px solid {palette["border"]} !important;
+    }}
+
+    div[data-baseweb="select"] > div,
+    .stTextInput input,
+    .stNumberInput input,
+    textarea {{
+        background: {palette["input"]} !important;
+        color: {palette["text"]} !important;
+        border-color: {palette["border"]} !important;
+        border-radius: 11px !important;
+    }}
+
+    div[data-baseweb="select"] span {{
+        color: {palette["text"]} !important;
+    }}
+
+    hr {{
+        border-color: {palette["border_soft"]} !important;
+    }}
+
+    [data-testid="stHorizontalBlock"] {{
+        gap: .65rem !important;
+    }}
+
+    [data-testid="stColumn"] {{
+        min-width: 0 !important;
+    }}
+
+    @media (max-width: 1200px) {{
+        .block-container,
+        [data-testid="stMainBlockContainer"] {{
+            width: 94% !important;
+            padding-top: 2rem !important;
+            padding-bottom: 2.5rem !important;
+        }}
+
+        [data-testid="stSidebar"] {{
+            width: 248px !important;
+            min-width: 248px !important;
+            max-width: 248px !important;
+        }}
+
+        [data-testid="stSidebar"] > div:first-child {{
+            width: 248px !important;
+        }}
+    }}
+
+    @media (max-width: 1050px) {{
+        .eco-v2-feature-strip {{
+            grid-template-columns: repeat(2, 1fr);
+        }}
+    }}
+
+    @media (max-width: 700px) {{
+        .eco-v2-hero {{
+            min-height: 0;
+            padding: 1.6rem;
+            border-radius: 19px;
+        }}
+
+        .eco-v2-feature-strip {{
+            grid-template-columns: 1fr;
+        }}
+
+        .block-container {{
+            padding-left: .85rem !important;
+            padding-right: .85rem !important;
+        }}
+    }}
+
+    /* ==========================================================
+       STREAMLIT SIDEBAR TOGGLE — CURRENT DOM FIX
+       ========================================================== */
+
+    /* Streamlit currently keeps the collapse/reopen control inside
+       stSidebar, including while aria-expanded="false". */
+    [data-testid="stSidebarCollapseButton"] {{
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 2147483000 !important;
+        margin: 0 !important;
+    }}
+
+    [data-testid="stSidebarCollapseButton"] button {{
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        width: 2.35rem !important;
+        height: 2.35rem !important;
+        min-width: 2.35rem !important;
+        min-height: 2.35rem !important;
+        padding: 0 !important;
+
+        background: var(--eco-surface) !important;
+        color: var(--eco-text) !important;
+        border: 1px solid var(--eco-border) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 7px 20px rgba(0, 0, 0, .16) !important;
+
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }}
+
+    [data-testid="stSidebarCollapseButton"] button:hover {{
+        background: var(--eco-surface-hover) !important;
+        border-color: var(--eco-primary) !important;
+    }}
+
+    /* Strongly restore the Material icon itself. */
+    [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="stSidebarCollapseButton"] i {{
+        font-family: "Material Symbols Rounded",
+                     "Material Symbols Outlined",
+                     "Material Icons" !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        font-size: 1.35rem !important;
+        line-height: 1 !important;
+        color: var(--eco-text) !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+        font-feature-settings: "liga" !important;
+        -webkit-font-feature-settings: "liga" !important;
+    }}
+
+    /* When sidebar is OPEN: pin the collapse button at its top-right. */
+    [data-testid="stSidebar"][aria-expanded="true"]
+    [data-testid="stSidebarHeader"] {{
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100000 !important;
+    }}
+
+    [data-testid="stSidebar"][aria-expanded="true"]
+    [data-testid="stSidebarCollapseButton"] {{
+        position: absolute !important;
+        top: .65rem !important;
+        right: .65rem !important;
+        left: auto !important;
+    }}
+
+    /* When sidebar is CLOSED: keep the same native toggle visible
+       as a floating reopen button at the top-left of the viewport. */
+    [data-testid="stSidebar"][aria-expanded="false"]
+    [data-testid="stSidebarCollapseButton"] {{
+        position: fixed !important;
+        top: .75rem !important;
+        left: .75rem !important;
+        right: auto !important;
+
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+
+        transform: translateX(0) !important;
+        z-index: 2147483000 !important;
+    }}
+
+    [data-testid="stSidebar"][aria-expanded="false"]
+    [data-testid="stSidebarCollapseButton"] button {{
+        background: #17B978 !important;
+        color: #FFFFFF !important;
+        border-color: rgba(255,255,255,.32) !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,.24) !important;
+    }}
+
+    [data-testid="stSidebar"][aria-expanded="false"]
+    [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="stSidebar"][aria-expanded="false"]
+    [data-testid="stSidebarCollapseButton"] i {{
+        color: #FFFFFF !important;
+    }}
+
+
+    /* ==========================================================
+       EXPANDER / DETECTED SECURITY ISSUES
+       ========================================================== */
+
+    [data-testid="stExpander"] {{
+        background: {palette["surface"]} !important;
+        border: 1px solid {palette["border"]} !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }}
+
+    [data-testid="stExpander"] summary {{
+        background: {palette["surface"]} !important;
+        color: {palette["text"]} !important;
+        font-weight: 700 !important;
+    }}
+
+    [data-testid="stExpander"] summary:hover {{
+        background: {palette["surface_hover"]} !important;
+        color: {palette["text"]} !important;
+    }}
+
+    [data-testid="stExpander"] summary p,
+    [data-testid="stExpander"] summary span {{
+        color: {palette["text"]} !important;
+        font-weight: 700 !important;
+    }}
+
+    [data-testid="stExpander"] summary:hover p,
+    [data-testid="stExpander"] summary:hover span {{
+        color: {palette["text"]} !important;
+    }}
+
+    [data-testid="stExpander"] summary svg,
+    [data-testid="stExpander"] summary:hover svg {{
+        color: {palette["text"]} !important;
+        fill: {palette["text"]} !important;
+    }}
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+        background: {palette["surface"]} !important;
+        color: {palette["text_secondary"]} !important;
+    }}
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] p {{
+        color: {palette["text_secondary"]} !important;
+        font-weight: 500 !important;
+    }}
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] strong {{
+    color: {palette["text"]} !important;
+    font-weight: 700 !important;
+}}
+
+
+/* ==========================================================
+   STATIC SIDEBAR — DISABLE HIDE / SHOW TOGGLE
+   ========================================================== */
+
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"] {{
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}}
+
+/* Keep sidebar permanently visible */
+[data-testid="stSidebar"] {{
+    transform: none !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}}
+
+
+</style>
+"""
+
+    # Keep the original reusable class definitions.
+    st.html(
+        GLOBAL_CSS
+    )
+
+    # Apply a complete theme-specific layer last.
+    st.html(
+        theme_css
+
+        
     )

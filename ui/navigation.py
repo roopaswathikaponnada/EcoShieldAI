@@ -36,6 +36,10 @@ from ui.state import (
     has_risk_assessment,
     is_assessment_completed,
     set_current_page,
+    get_theme,
+    set_theme,
+    THEME_DARK,
+    THEME_LIGHT,
 )
 
 
@@ -557,11 +561,6 @@ def _render_page_button(
 def render_sidebar_navigation() -> str:
     """
     Render the permanent EcoShield sidebar.
-
-    Returns
-    -------
-    str
-        Current canonical page name.
     """
 
     current_page = (
@@ -573,15 +572,71 @@ def render_sidebar_navigation() -> str:
         render_brand(
             name="EcoShield AI",
             tagline=(
-                "Secure Data. "
-                "Sustainable Decisions."
+                "Secure Devices. "
+                "Greener Tomorrow."
             ),
             icon="🛡️",
         )
 
+        # --------------------------------------------------------
+        # Theme switcher
+        # --------------------------------------------------------
+
+        current_theme = (
+            get_theme()
+        )
+
+        theme_col1, theme_col2 = (
+            st.columns(2)
+        )
+
+        with theme_col1:
+
+            light_clicked = st.button(
+                "☀️ Light",
+                key="theme_light",
+                use_container_width=True,
+                type=(
+                    "primary"
+                    if current_theme
+                    == THEME_LIGHT
+                    else "secondary"
+                ),
+            )
+
+        with theme_col2:
+
+            dark_clicked = st.button(
+                "🌙 Dark",
+                key="theme_dark",
+                use_container_width=True,
+                type=(
+                    "primary"
+                    if current_theme
+                    == THEME_DARK
+                    else "secondary"
+                ),
+            )
+
+        if light_clicked:
+
+            set_theme(
+                THEME_LIGHT
+            )
+
+            st.rerun()
+
+        if dark_clicked:
+
+            set_theme(
+                THEME_DARK
+            )
+
+            st.rerun()
+
         st.caption(
-            "AI-powered secure e-waste "
-            "decision support"
+            "AI-powered e-waste security & "
+            "sustainability advisor"
         )
 
         st.divider()

@@ -102,7 +102,16 @@ CATEGORY_DISPOSAL = "Disposal"
 
 CATEGORY_UNCERTAINTY = "Uncertainty"
 
-
+CATEGORY_ORDER = {
+    CATEGORY_SECURITY: 0,
+    CATEGORY_DATA_PROTECTION: 1,
+    CATEGORY_ACCOUNT_SECURITY: 2,
+    CATEGORY_DEVICE_PREPARATION: 3,
+    CATEGORY_PRIVACY: 4,
+    CATEGORY_UNCERTAINTY: 5,
+    CATEGORY_DISPOSAL: 6,
+    CATEGORY_SUSTAINABILITY: 7,
+}
 # ============================================================
 # DISPOSAL READINESS
 # ============================================================
@@ -340,6 +349,10 @@ class RecommendationResult:
         default_factory=tuple
     )
 
+    used_ai: bool = False
+
+    used_fallback: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         """
         Return a serializable dictionary representation.
@@ -410,13 +423,16 @@ def _sort_recommendations(
         sorted(
             recommendations,
             key=lambda item: (
-                PRIORITY_ORDER.get(
-                    item.priority,
-                    99,
-                ),
-                item.category,
-                item.code,
-            ),
+    PRIORITY_ORDER.get(
+        item.priority,
+        99,
+    ),
+    CATEGORY_ORDER.get(
+        item.category,
+        99,
+    ),
+    item.code,
+),
         )
     )
 
@@ -495,19 +511,19 @@ def _determine_readiness(
     Determine whether the selected device action is currently
     ready to proceed.
 
-    The readiness result is intentionally conservative for
-    devices leaving the owner's control.
+    Readiness is action-aware:
+
+    - External transfer/disposal is blocked when unresolved
+      sanitization requirements remain.
+    - High-risk assessments that do not involve ownership
+      transfer are treated conservatively as Conditional.
+    - Medium risk or unresolved uncertainty is Conditional.
+    - Low-risk assessments without blocking conditions are
+      Ready.
     """
 
-    data = assessment.validated_data
-
-    disposal_method = data.get(
-        FIELD_DISPOSAL_METHOD
-    )
-
     leaves_owner = (
-        disposal_method
-        in DEVICE_LEAVES_OWNER_ACTIONS
+        assessment.device_leaves_owner
     )
 
     # --------------------------------------------------------
@@ -521,11 +537,21 @@ def _determine_readiness(
         return READINESS_NOT_READY
 
     # --------------------------------------------------------
-    # High cybersecurity risk
+    # High risk during external transfer
+    # --------------------------------------------------------
+
+    if (
+        leaves_owner
+        and assessment.risk_level == RISK_HIGH
+    ):
+        return READINESS_NOT_READY
+
+    # --------------------------------------------------------
+    # High risk while device remains with owner
     # --------------------------------------------------------
 
     if assessment.risk_level == RISK_HIGH:
-        return READINESS_NOT_READY
+        return READINESS_CONDITIONAL
 
     # --------------------------------------------------------
     # Medium cybersecurity risk
@@ -542,7 +568,6 @@ def _determine_readiness(
         return READINESS_CONDITIONAL
 
     return READINESS_READY
-
 
 # ============================================================
 # SUMMARY GENERATION
@@ -788,8 +813,9 @@ def _recommend_sanitization(
 
     data = assessment.validated_data
 
-    if not _data_may_exist(data):
-        return
+    data_may_exist = _data_may_exist(
+        data
+    )
 
     secure_erase = data.get(
         FIELD_SECURE_ERASE
@@ -815,7 +841,10 @@ def _recommend_sanitization(
     # Secure erase
     # --------------------------------------------------------
 
-    if secure_erase == "No":
+    if (
+        data_may_exist
+        and secure_erase == "No"
+    ):
 
         priority = (
             PRIORITY_CRITICAL
@@ -840,7 +869,10 @@ def _recommend_sanitization(
             ),
         )
 
-    elif secure_erase == "Unsure":
+    elif (
+        data_may_exist
+        and secure_erase == "Unsure"
+    ):
 
         _add_recommendation(
             recommendations,
@@ -925,8 +957,11 @@ def _recommend_sanitization(
     # --------------------------------------------------------
 
     if (
-        accessible == "No"
-        or power_on == "No"
+        data_may_exist
+        and (
+            accessible == "No"
+            or power_on == "No"
+        )
     ):
 
         _add_recommendation(
@@ -1031,9 +1066,9 @@ def _recommend_transfer_controls(
     )
 
     if (
-        method in DEVICE_LEAVES_OWNER_ACTIONS
-        and assessment.requires_sanitization
-    ):
+    assessment.device_leaves_owner
+    and assessment.requires_sanitization
+):
 
         _add_recommendation(
             recommendations,
@@ -1062,11 +1097,12 @@ def _recommend_transfer_controls(
             priority=PRIORITY_MEDIUM,
             title="Prepare the device for third-party repair",
             action=(
-                "Back up required information, minimize "
-                "unnecessary exposed data, and review "
-                "account access before handing the device "
-                "to a repair provider."
-            ),
+    "Back up required information, remove "
+    "unnecessary sensitive data where practical, "
+    "remove removable media where appropriate, "
+    "and review account access before handing "
+    "the device to a repair provider."
+),
             rationale=(
                 "Repair can expose the device to a "
                 "third-party service provider."
@@ -1230,37 +1266,87 @@ def _generate_sustainability_actions(
                 "reusable components and recyclable materials."
             ),
         )
+    # --------------------------------------------------------
+    # Explicit reuse choice
+    # --------------------------------------------------------
+
+    if disposal_method in REUSE_ACTIONS:
+
+        _add_recommendation(
+            recommendations,
+            code="SUPPORT_CONTINUED_REUSE",
+            category=CATEGORY_SUSTAINABILITY,
+            priority=PRIORITY_LOW,
+            title="Support continued device reuse",
+            action=(
+                "Continue using the device while it remains "
+                "safe, functional, and suitable for its "
+                "intended purpose."
+            ),
+            rationale=(
+                "Continued responsible use can extend the "
+                "device lifecycle and delay unnecessary "
+                "replacement or disposal."
+            ),
+        )
 
     # --------------------------------------------------------
-    # Explicit recycle/dispose choice
+    # Explicit recycling choice
     # --------------------------------------------------------
 
-    if disposal_method in FINAL_DISPOSAL_ACTIONS:
+    if disposal_method == "Recycle":
 
         _add_recommendation(
             recommendations,
             code="USE_RESPONSIBLE_EWASTE_CHANNEL",
             category=CATEGORY_SUSTAINABILITY,
             priority=PRIORITY_HIGH,
-            title="Use an appropriate e-waste channel",
+            title="Use an appropriate e-waste recycling channel",
             action=(
-                "Use an authorized or otherwise appropriate "
-                "electronics collection, recycling, or "
-                "disposal channel after required security "
-                "preparation is complete."
-            ),
+    "If continued use, reuse, repair, or refurbishment is "
+    "not practical and recycling remains the selected "
+    "lifecycle path, use an authorized or otherwise "
+    "appropriate electronics collection or recycling "
+    "channel after required security preparation is "
+    "complete."
+           ),
             rationale=(
-                "Electronic devices should be handled "
-                "separately from ordinary household waste "
-                "where appropriate."
+                "Responsible e-waste recycling helps route "
+                "electronic equipment toward appropriate "
+                "material recovery and handling."
             ),
         )
 
     # --------------------------------------------------------
+    # Explicit disposal choice
+    # --------------------------------------------------------
+
+    elif disposal_method == "Dispose":
+
+        _add_recommendation(
+            recommendations,
+            code="PREFER_EWASTE_CHANNEL_OVER_GENERAL_DISPOSAL",
+            category=CATEGORY_SUSTAINABILITY,
+            priority=PRIORITY_HIGH,
+            title="Avoid ordinary waste disposal",
+            action=(
+    "If continued use, reuse, repair, or refurbishment is "
+    "not practical, prefer an appropriate e-waste "
+    "collection or recycling channel over ordinary waste "
+    "disposal after required security preparation is "
+    "complete."
+            ),
+            rationale=(
+                "Electronic equipment may contain recoverable "
+                "materials and should be directed to suitable "
+                "e-waste handling channels where available."
+            ),
+        )
+    # --------------------------------------------------------
     # Repair choice
     # --------------------------------------------------------
 
-    if disposal_method == "Repair":
+    if disposal_method in REPAIR_ACTIONS:
 
         _add_recommendation(
             recommendations,
@@ -1418,6 +1504,51 @@ def _build_warnings(
         )
     )
 
+# ============================================================
+# NEXT-STEP EXECUTION ORDER
+# ============================================================
+
+NEXT_STEP_ORDER = {
+    # Immediate transfer blocker
+    "BLOCK_TRANSFER_UNTIL_SECURE": 0,
+
+    # Preserve required information first
+    "COMPLETE_BACKUP": 10,
+    "VERIFY_BACKUP": 11,
+
+    # Resolve device/security uncertainty
+    "RESOLVE_ASSESSMENT_UNCERTAINTY": 20,
+    "IDENTIFY_STORAGE_TYPE": 21,
+    "VERIFY_ENCRYPTION_STATUS": 22,
+
+    # Account and removable-media preparation
+    "SIGN_OUT_ACCOUNTS": 30,
+    "VERIFY_ACCOUNT_SIGNOUT": 31,
+    "REMOVE_REMOVABLE_MEDIA": 32,
+    "VERIFY_REMOVABLE_MEDIA": 33,
+
+    # Device sanitization/reset preparation
+    "VERIFY_SECURE_SANITIZATION": 40,
+    "PERFORM_SECURE_SANITIZATION": 41,
+    "VERIFY_FACTORY_RESET": 42,
+    "COMPLETE_FACTORY_RESET": 43,
+    "USE_ALTERNATIVE_SANITIZATION_PATH": 44,
+
+    # Other security / transfer preparation
+    "UNENCRYPTED_DATA_CAUTION": 50,
+    "PREPARE_FOR_REPAIR": 51,
+    "SELECT_DISPOSAL_METHOD": 52,
+
+    # Sustainability actions
+    "PREFER_REUSE_FOR_WORKING_DEVICE": 100,
+    "CONSIDER_REPAIR_OR_REFURBISHMENT": 101,
+    "ASSESS_RECOVERY_BEFORE_RECYCLING": 102,
+    "SUPPORT_CONTINUED_REUSE": 103,
+    "SUPPORT_LIFETIME_EXTENSION": 104,
+    "ASSESS_OLD_DEVICE_VIABILITY": 105,
+    "USE_RESPONSIBLE_EWASTE_CHANNEL": 106,
+    "PREFER_EWASTE_CHANNEL_OVER_GENERAL_DISPOSAL": 107,
+}
 
 # ============================================================
 # NEXT STEP GENERATION
@@ -1434,16 +1565,51 @@ def _build_next_steps(
     ],
 ) -> tuple[str, ...]:
     """
-    Build concise ordered user-facing next steps.
+    Build concise user-facing next steps in a safe,
+    deterministic execution order.
 
-    Security actions always appear before sustainability
-    actions because safe data handling must occur before
-    ownership transfer or disposal.
+    Recommendation-card priority and execution order are
+    intentionally separate. For example, required backups
+    should occur before destructive sanitization actions even
+    when sanitization carries a higher risk priority.
+
+    Security preparation remains ahead of sustainability
+    actions.
     """
 
+    security_items = sorted(
+        security_actions,
+        key=lambda item: (
+            NEXT_STEP_ORDER.get(
+                item.code,
+                90,
+            ),
+            PRIORITY_ORDER.get(
+                item.priority,
+                99,
+            ),
+            item.code,
+        ),
+    )
+
+    sustainability_items = sorted(
+        sustainability_actions,
+        key=lambda item: (
+            NEXT_STEP_ORDER.get(
+                item.code,
+                999,
+            ),
+            PRIORITY_ORDER.get(
+                item.priority,
+                99,
+            ),
+            item.code,
+        ),
+    )
+
     ordered_items = (
-        list(security_actions)
-        + list(sustainability_actions)
+        security_items
+        + sustainability_items
     )
 
     seen_titles: set[str] = set()
@@ -1466,7 +1632,6 @@ def _build_next_steps(
     return tuple(
         next_steps
     )
-
 
 # ============================================================
 # PRIMARY PUBLIC RECOMMENDATION FUNCTION
@@ -1566,9 +1731,35 @@ def generate_recommendation(
         sustainability_actions,
     )
 
+        # --------------------------------------------------------
+    # Risk Engine integration invariant
+    # --------------------------------------------------------
+
+    risk_score = assessment.score
+    risk_level = assessment.risk_level
+
+    if not isinstance(risk_score, int):
+        raise TypeError(
+            "RiskAssessment.score must be an integer."
+        )
+
+    if risk_score < 0 or risk_score > 100:
+        raise ValueError(
+            "RiskAssessment.score must be between 0 and 100."
+        )
+
+    if risk_level not in {
+        RISK_LOW,
+        RISK_MEDIUM,
+        RISK_HIGH,
+    }:
+        raise ValueError(
+            "RiskAssessment.risk_level is not recognized."
+        )
+
     return RecommendationResult(
-        risk_score=assessment.score,
-        risk_level=assessment.risk_level,
+        risk_score=risk_score,
+        risk_level=risk_level,
         readiness=readiness,
         summary=summary,
         security_actions=security_actions,
@@ -1578,6 +1769,8 @@ def generate_recommendation(
         assessment=assessment,
         ai_explanation=None,
         retrieved_context=(),
+        used_ai=False,
+        used_fallback=False,
     )
 
 
