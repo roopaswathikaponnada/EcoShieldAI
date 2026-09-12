@@ -2,6 +2,12 @@
 
 > A privacy-first cybersecurity and sustainability advisor that helps users assess electronic devices before reuse, resale, donation, repair, or recycling.
 
+## Live Demo
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ecoshield-ai.streamlit.app)
+
+---
+
 ## Project Overview
 
 **EcoShield AI** is an AI-assisted e-waste security and sustainability advisory system designed to help users make safer decisions before transferring or disposing of electronic devices.
