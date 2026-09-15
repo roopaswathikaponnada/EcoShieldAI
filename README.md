@@ -5,7 +5,7 @@
 ## Live Demo
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ecoshield-ai.streamlit.app)
-
+> **Deployment Note:** The public Streamlit demo runs in deterministic mode for reliability. Full RAG and local LLM functionality are available in the source code and can be enabled through the documented local setup.
 ---
 
 ## Project Overview
